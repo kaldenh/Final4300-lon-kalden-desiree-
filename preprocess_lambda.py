@@ -7,11 +7,14 @@ import os
 from datetime import datetime
 
 # Replace with your actual values
-RDS_HOST = "your-rds-instance.region.rds.amazonaws.com"
+RDS_HOST = "ds4300-mysql.c3euygkgaccu.us-east-2.rds.amazonaws.com"
 RDS_PORT = 3306
 RDS_USER = "admin"
-RDS_PASSWORD = "your-password"
+RDS_PASSWORD = "THEVERYBEST"
 RDS_DB_NAME = "pokemon_analyzer"
+
+# Maximum number of Pokémon allowed in a team
+MAX_TEAM_SIZE = 6
 
 s3 = boto3.client('s3')
 
@@ -39,7 +42,8 @@ def lambda_handler(event, context):
                 'statusCode': 200,
                 'body': json.dumps({
                     'message': f"Successfully processed team from {key}",
-                    'team_id': team_id
+                    'team_id': team_id,
+                    'pokemon_count': len(processed_team)
                 })
             }
     
@@ -57,6 +61,9 @@ def process_csv(csv_path, filename):
     
     # Clean up column names - handle case and spaces
     df.columns = [col.strip().lower() for col in df.columns]
+
+    # Replace null names with "NULL"
+    df['name'] = df['name'].fillna("NULL")
     
     # Map different column variations to expected format
     column_map = {
@@ -125,6 +132,11 @@ def process_csv(csv_path, filename):
     # If no type1 or type2, replace with 'normal'
     df.loc[df['type1'].isna(), 'type1'] = 'normal'
     
+    # Limit to a maximum of 6 Pokémon
+    if len(df) > MAX_TEAM_SIZE:
+        print(f"Warning: CSV contains {len(df)} Pokémon, limiting to first {MAX_TEAM_SIZE}")
+        df = df.head(MAX_TEAM_SIZE)
+    
     # Calculate type effectiveness
     df['type_matchups'] = df.apply(calculate_type_matchups, axis=1)
     
@@ -139,8 +151,8 @@ def calculate_type_matchups(pokemon_row):
     """
     Calculate offensive and defensive type matchups using a single type chart
     """
-    type1 = pokemon_row['type1']
-    type2 = pokemon_row['type2'] if not pd.isna(pokemon_row['type2']) else None
+    type1 = pokemon_row['type1'].capitalize() if not pd.isna(pokemon_row['type1']) else None
+    type2 = pokemon_row['type2'].capitalize() if not pd.isna(pokemon_row['type2']) else None
     
     # All Pokémon types
     all_types = [
@@ -192,25 +204,31 @@ def calculate_type_matchups(pokemon_row):
     # Calculate offensive matchups - how this Pokémon's types fare against others
     if type1 in type_chart:
         for defending_type, effectiveness in type_chart[type1].items():
-            offensive_matchups[defending_type] = effectiveness
+            # Convert the capitalized defending type to lowercase for our output
+            defending_type_lower = defending_type.lower()
+            offensive_matchups[defending_type_lower] = effectiveness
     
     if type2 and type2 in type_chart:
         for defending_type, effectiveness in type_chart[type2].items():
+            # Convert the capitalized defending type to lowercase for our output
+            defending_type_lower = defending_type.lower()
             # Take the most effective option between type1 and type2
-            if effectiveness > offensive_matchups[defending_type]:
-                offensive_matchups[defending_type] = effectiveness
+            if effectiveness > offensive_matchups[defending_type_lower]:
+                offensive_matchups[defending_type_lower] = effectiveness
     
     # Calculate defensive matchups - how other types fare against this Pokémon
     for attacking_type in type_chart:
-        for defending_type in type_chart[attacking_type]:
+        attacking_type_lower = attacking_type.lower()
+        
+        for defending_type, effectiveness in type_chart[attacking_type].items():
             # If this attacking type has an effectiveness against one of our types
             if defending_type == type1:
                 # The defensive score is the inverse of the offensive score
-                defensive_matchups[attacking_type] -= type_chart[attacking_type][defending_type]
+                defensive_matchups[attacking_type_lower] -= effectiveness
             
-            if defending_type == type2 and type2 is not None:
+            if type2 and defending_type == type2:
                 # Stack effects for dual types
-                defensive_matchups[attacking_type] -= type_chart[attacking_type][defending_type]
+                defensive_matchups[attacking_type_lower] -= effectiveness
     
     # Clamp defensive values to the range [-2, 2]
     for t in defensive_matchups:
@@ -257,7 +275,9 @@ def store_in_rds(df, team_id):
             CREATE TABLE IF NOT EXISTS teams (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 team_id VARCHAR(255) UNIQUE NOT NULL,
-                created_at DATETIME NOT NULL
+                created_at DATETIME NOT NULL,
+                pokemon_count INT NOT NULL DEFAULT 0,
+                CHECK (pokemon_count <= 6)
             )
             """)
             print("✅ Created or verified 'teams' table.")
@@ -275,7 +295,10 @@ def store_in_rds(df, team_id):
                 defense FLOAT,
                 special_attack FLOAT,
                 special_defense FLOAT,
-                speed FLOAT
+                speed FLOAT,
+                CONSTRAINT fk_team FOREIGN KEY (team_id) 
+                    REFERENCES teams(team_id)
+                    ON DELETE CASCADE
             )
             """)
             print("✅ Created or verified 'pokemon' table.")
@@ -287,17 +310,20 @@ def store_in_rds(df, team_id):
                 pokemon_id INT NOT NULL,
                 type VARCHAR(50) NOT NULL,
                 offensive_score INT,
-                defensive_score INT
+                defensive_score INT,
+                CONSTRAINT fk_pokemon FOREIGN KEY (pokemon_id) 
+                    REFERENCES pokemon(id)
+                    ON DELETE CASCADE
             )
             """)
             print("✅ Created or verified 'type_matchups' table.")
             
             # Insert team record
             cursor.execute(
-                "INSERT INTO teams (team_id, created_at) VALUES (%s, NOW())",
-                (team_id,)  # Fixed: Added comma to make this a tuple
+                "INSERT INTO teams (team_id, created_at, pokemon_count) VALUES (%s, NOW(), %s)",
+                (team_id, len(df))
             )
-            print(f"✅ Inserted team record with ID: {team_id}")
+            print(f"✅ Inserted team record with ID: {team_id}, Pokemon count: {len(df)}")
             
             # Insert Pokémon records and their matchups
             for idx, row in df.iterrows():
