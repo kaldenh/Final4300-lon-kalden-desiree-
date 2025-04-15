@@ -45,18 +45,18 @@ if uploaded_file is not None:
 
         if st.button("Send!"):
             conn = st.connection('s3', type=FilesConnection)
-            csv_buffer = io.StringIO()
-            print(csv_buffer)
-            df.to_csv(csv_buffer, index=False)
-            s3fs = conn.fs
+            # csv_buffer = io.StringIO()
+            # print(csv_buffer)
+            # df.to_csv(csv_buffer, index=False)
+            # s3fs = conn.fs
     
-            # Define the S3 path
-            # s3_path = "ds4300-final-lon-kalden-desiree/my_pokemon_data.csv"
+            # # Define the S3 path
+            # # s3_path = "ds4300-final-lon-kalden-desiree/my_pokemon_data.csv"
             
-            # Write to S3
-            with s3fs.open('ds4300-final-lon-kalden-desiree', 'w') as f:
-                f.write(csv_buffer.getvalue())
-            # conn.write(df, 'ds4300-final-lon-kalden-desiree/Example_Pokemon_Team_Bad.csv', output_format="csv", index=False)
+            # # Write to S3
+            # with s3fs.open('ds4300-final-lon-kalden-desiree', 'w') as f:
+            #     f.write(csv_buffer.getvalue())
+            conn.write(df, 'ds4300-final-lon-kalden-desiree/pokemon_team.csv', output_format="csv", index=False)
             st.success("File written to S3 successfully!")
 
     except Exception as e:
