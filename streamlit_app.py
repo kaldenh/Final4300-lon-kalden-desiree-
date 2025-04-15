@@ -10,6 +10,13 @@ st.set_page_config(
     layout="wide"
 )
 
+conn = st.connection('s3', type=FilesConnection)
+df = conn.read("testbucket-jrieke/myfile.csv", input_format="csv")
+# Print results.
+for row in df.itertuples():
+    st.write(f"{row}")
+
+
 # App title and description
 st.title("CSV File Uploader")
 st.markdown("Upload a CSV file to view and analyze its contents")
