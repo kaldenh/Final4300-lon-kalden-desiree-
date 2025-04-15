@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
-from streamlit.connections import FilesConnection
+from st_files_connection import FilesConnection
 
 # Set page configuration
 st.set_page_config(
