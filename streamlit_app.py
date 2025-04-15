@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import io
 from st_files_connection import FilesConnection
 
 # Set page configuration
@@ -41,15 +42,26 @@ if uploaded_file is not None:
         # Display DataFrame information
         st.write("### Data Preview")
         st.dataframe(df.head(10), use_container_width=True)
+
+        if st.button("Write to S3"):
+            conn = FilesConnection()
+            csv_buffer = io.StringIO()
+            df.to_csv(csv_buffer, index=False)
+            s3fs = conn.fs
     
+            # Define the S3 path
+            s3_path = "ds4300-final-lon-kalden-desiree/my_pokemon_data.csv"
+            
+            # Write to S3
+            with s3fs.open(s3_path, 'w') as f:
+                f.write(csv_buffer.getvalue())
+            # conn.write(df, 'ds4300-final-lon-kalden-desiree/Example_Pokemon_Team_Bad.csv', output_format="csv", index=False)
+            st.success("File written to S3 successfully!")
 
     except Exception as e:
         st.error(f"Error reading the CSV file: {e}")
 
-    if st.button("Write to S3"):
-        conn = st.connection('s3', type=FilesConnection)
-        conn.write(df, 'ds4300-final-lon-kalden-desiree/Example_Pokemon_Team_Bad.csv', output_format="csv", index=False)
-        st.success("File written to S3 successfully!")
+    
 else:
     # Display instructions when no file is uploaded
     st.info("👆 Please upload a CSV file to get started.")
