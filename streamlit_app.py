@@ -66,10 +66,14 @@ else:
     # Show a sample of what users can expect
     st.write("### Example Preview:")
     sample_data = pd.DataFrame({
-        'Name': ['John', 'Lisa', 'Mike', 'Sarah'],
-        'Age': [28, 34, 42, 31],
-        'City': ['New York', 'Boston', 'Chicago', 'Seattle'],
-        'Salary': [75000, 85000, 92000, 79000]
+        'Pokemon': ['John', 'Lisa', 'Mike', 'Sarah'],
+        'Type 1': [28, 34, 42, 31],
+        'Type 2': [28, 34, 42, 31],
+        'HP': [28, 34, 42, 31],
+        'Attack': [28, 34, 42, 31],
+        'SpecialAttack': [28, 34, 42, 31],
+        'SpecialDefense': [28, 34, 42, 31],
+        'SpecialDefense': [28, 34, 42, 31],
     })
     st.dataframe(sample_data, use_container_width=True)
 
