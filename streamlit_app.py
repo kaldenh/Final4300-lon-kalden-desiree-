@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 conn = st.connection('s3', type=FilesConnection)
-df = conn.read("testbucket-jrieke/myfile.csv", input_format="csv")
+df = conn.read("ds4300-final-lon-kalden-desiree/Example_Pokemon_Team_Bad.csv", input_format="csv")
 # Print results.
 for row in df.itertuples():
     st.write(f"{row}")
